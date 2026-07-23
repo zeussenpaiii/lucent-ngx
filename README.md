@@ -78,7 +78,32 @@ This slices the master to 2021–2025 and drops five empty scaffolding columns.
   Denham** (listed 2023 → 3 years; shown with a "limited history" badge).
 - **Fiscal calendars differ:** **Airtel Africa** has a 31 March year-end, flagged
   on its workspace — its "FY2025" is not the same period as a December filer's.
-- **Currency:** all figures are tagged NGN.
+- **Currency:** three groups report in **US dollars**, not Naira — **Ecobank
+  (ETI)**, **Seplat Energy** and **Airtel Africa**. `scripts/prepare_data.py`
+  converts their monetary columns to NGN at World Bank annual-average USD/NGN
+  rates, and each is tagged "Reports in USD · converted to NGN" in the app.
+  Ratios are unit-independent so they are left untouched. These absolute figures
+  are therefore approximate (±~3%); verified against published results:
+  Seplat FY2024 → ₦1.65trn (reported ₦1.652trn), Ecobank FY2024 → ₦4.08trn
+  (reported ₦4.22trn), Airtel FY2025 → ₦7.61trn ($4,955m × 1535).
+
+## Data quality
+
+`scripts/` includes the corrections; the dataset was audited against the hard
+accounting identities that real statements must satisfy:
+
+| Check | Result |
+|---|---|
+| Assets = Liabilities + Equity | 172/172 (100%) |
+| Net margin = PAT ÷ Revenue | 173/173 (100%) |
+| Gross profit = Revenue − COGS | 95/95 (100%) |
+| EPS ≈ attributable profit ÷ shares | 93% |
+| ROE plausibility | 92% |
+
+The EPS/ROE shortfalls are accounting nuances, not bad data: weighted-average
+share counts (several banks ran large rights issues in 2024) and companies whose
+equity was driven near zero or negative by FX losses, which makes average-vs-
+closing ROE diverge. Those cases are flagged in the UI rather than hidden.
 
 ## Project structure
 

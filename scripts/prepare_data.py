@@ -28,15 +28,28 @@ YEAR_MIN, YEAR_MAX = 2021, 2025
 DEAD_COLS = ["page_method", "needs_review", "missing", "repair_notes", "ocr_dependent"]
 
 # --- sourced corrections ---------------------------------------------------
-# Ecobank (ETI) reports in US dollars; the extractor stored USD figures under an
-# NGN label, so its absolute values looked ~1000x too small. Convert every
-# monetary column to NGN at World Bank official annual-average USD/NGN rates.
-# Ratios (ROE/ROA/margins) are unit-independent and already correct, so we leave
-# them; converting all money columns by one rate/year keeps A=L+E and ratios
-# consistent. Figures are therefore approximate (ETI is a pan-African group).
-# Verified: 2024 PAT $0.49bn x1478 ~= N724bn vs reported N735.9bn.
-# Sources: nairametrics.com (ETI FY2024), World Bank PA.NUS.FCRF (rates).
-ETI_USD_NGN = {2021: 401.0, 2022: 426.0, 2023: 645.0, 2024: 1478.0, 2025: 1535.0}
+# Three NGX-listed groups report in US dollars, not Naira (Ecobank/ETI, Seplat
+# Energy and Airtel Africa — the international dual-listed groups). The extractor
+# stored their USD figures under an NGN label, so their absolute values looked
+# ~1000x too small. Convert every monetary column to NGN at World Bank official
+# annual-average USD/NGN rates.
+#
+# Ratios (ROE/ROA/margins) are unit-independent and already correct, so they are
+# left untouched; scaling all money columns by one rate per year also keeps
+# A = L + E intact. Figures are therefore approximate (these are multi-country
+# groups whose own consolidation rates differ slightly).
+#
+# Verified against published Naira figures:
+#   Ecobank FY2024: $0.49bn x1478 ~= N724bn vs reported N735.9bn (-1.6%)
+#   Seplat  FY2024: $1.116bn x1478 ~= N1.65trn vs reported N1.652trn (exact)
+# Sources: nairametrics.com (ETI FY2024), arise.tv (Seplat FY2024),
+#          technext24.com (Airtel FY2025), World Bank PA.NUS.FCRF (rates).
+USD_NGN = {2021: 401.0, 2022: 426.0, 2023: 645.0, 2024: 1478.0, 2025: 1535.0}
+USD_COMPANIES = ["ECO BANK", "SEPLAT ENERGY", "AIRTEL AFRICA"]
+
+# Money columns converted by the FX rate. Per-share amounts are deliberately
+# excluded: their units are inconsistent in the source (dollars for some issuers,
+# US cents for others), so we recompute them from converted profit instead.
 _MONEY_COLS = [
     "gross_earnings", "net_interest_income", "cost_of_sales", "operating_expenses",
     "depreciation_amortization", "finance_cost", "impairment_loan_loss", "profit_before_tax",
@@ -46,20 +59,39 @@ _MONEY_COLS = [
     "gross_profit", "operating_profit", "income_tax_expense", "customer_deposits", "net_loans_advances",
     "net_premium_income", "net_claims_incurred", "aum", "nav_total", "nci_profit_after_tax",
     "nci_total_equity", "working_capital", "free_cash_flow", "ebitda",
-    "eps_basic", "dividend_per_share", "nav_per_unit",  # per-share amounts are also USD
 ]
 
 
 def _apply_corrections(df: pd.DataFrame) -> pd.DataFrame:
-    eti = df["company"] == "ECO BANK"
-    for yr, rate in ETI_USD_NGN.items():
-        m = eti & (df["year"] == yr)
-        for col in _MONEY_COLS:
-            if col in df.columns:
-                df.loc[m, col] = pd.to_numeric(df.loc[m, col], errors="coerce") * rate
-    n = int(eti.sum())
-    if n:
-        print(f"[FIX] Ecobank (ETI): converted {n} rows USD->NGN at annual-average rates")
+    fixed = 0
+    for company in USD_COMPANIES:
+        rows = df["company"] == company
+        if not rows.any():
+            continue
+
+        # 1) money columns -> NGN at that year's average rate
+        for yr, rate in USD_NGN.items():
+            m = rows & (df["year"] == yr)
+            for col in _MONEY_COLS:
+                if col in df.columns:
+                    df.loc[m, col] = pd.to_numeric(df.loc[m, col], errors="coerce") * rate
+
+        # 2) per-share figures recomputed in NGN from the converted profit, which
+        #    sidesteps the dollars-vs-cents ambiguity in the source data.
+        #    EPS = profit attributable to owners / shares; DPS = payout x EPS
+        #    (payout_ratio is a ratio, so it survives the currency change).
+        pat = pd.to_numeric(df.loc[rows, "profit_after_tax"], errors="coerce")
+        nci = pd.to_numeric(df.loc[rows, "nci_profit_after_tax"], errors="coerce").fillna(0)
+        shares = pd.to_numeric(df.loc[rows, "shares_outstanding"], errors="coerce")
+        payout = pd.to_numeric(df.loc[rows, "payout_ratio"], errors="coerce")
+        eps = (pat - nci) / shares
+        df.loc[rows, "eps_basic"] = eps
+        df.loc[rows, "dividend_per_share"] = payout * eps
+
+        fixed += int(rows.sum())
+        print(f"[FIX] {company}: {int(rows.sum())} rows converted USD->NGN")
+    if fixed:
+        print(f"[FIX] total {fixed} rows corrected across {len(USD_COMPANIES)} USD reporters")
     return df
 
 

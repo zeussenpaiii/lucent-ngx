@@ -243,6 +243,8 @@ NON_DECEMBER_FYE = {
 # are approximate; ratios are unaffected. Surfaced as a transparency chip.
 USD_REPORTED = {
     "ECO BANK": "Reports in USD · converted to NGN",
+    "SEPLAT ENERGY": "Reports in USD · converted to NGN",
+    "AIRTEL AFRICA": "Reports in USD · converted to NGN",
 }
 
 
