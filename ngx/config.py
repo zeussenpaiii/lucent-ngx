@@ -7,8 +7,13 @@ No Streamlit or pandas imports here so it stays cheap to import anywhere.
 """
 from __future__ import annotations
 
-APP_NAME = "NGX Intelligence Workspace"
-APP_TAGLINE = "Financial intelligence on 35 NGX-listed companies · 2021–2025"
+# --- brand -----------------------------------------------------------------
+# Centralised so a rename is a one-line change everywhere.
+BRAND = "Lucent"
+APP_NAME = BRAND
+APP_TAGLINE = "Clarity on the Nigerian market"
+APP_DESCRIPTOR = "NGX Financial Intelligence"
+BRAND_YEAR = 2026
 
 # --- analysis window -------------------------------------------------------
 YEAR_MIN, YEAR_MAX = 2021, 2025
@@ -20,22 +25,27 @@ DATA_FILE = "data/ngx_2021_2025.csv"
 # (deterministic, grounded) is always on and needs no key.
 ENABLE_LLM = False
 
-# --- theme (dark) ----------------------------------------------------------
+# --- theme (dark-first, deep charcoal + warm gold accent) ------------------
 THEME = {
-    "bg": "#0d1117",
-    "panel": "#161b22",
-    "panel2": "#1c2333",
-    "border": "#2a3038",
-    "text": "#e6edf3",
-    "muted": "#8b949e",
-    "accent": "#3b82f6",   # blue
-    "pos": "#3fb950",      # green
-    "neg": "#f85149",      # red
-    "warn": "#d29922",     # amber
-    "grid": "#21262d",
+    "bg": "#0B0C0E",        # near-black canvas
+    "bg2": "#0E1013",
+    "panel": "#131519",     # card surface
+    "panel2": "#191C22",    # elevated surface
+    "panel3": "#20242C",    # hover / inset
+    "border": "#262A31",
+    "border2": "#333944",
+    "text": "#F4F5F7",      # warm white
+    "muted": "#9BA1AC",
+    "faint": "#697079",
+    "accent": "#E3B341",    # signature gold (brand / focus / caution)
+    "accent_soft": "#3a3320",
+    "pos": "#3FB950",       # green — value up / good
+    "neg": "#F85149",       # red — value down / bad
+    "warn": "#E3B341",      # gold — attention / caution
+    "grid": "#20242B",
 }
-# Qualitative palette for multi-series charts (colour-blind aware, dark-safe).
-SERIES_COLORS = ["#3b82f6", "#3fb950", "#d29922", "#a371f7", "#f85149", "#2dd4bf"]
+# Qualitative palette for multi-series charts (cohesive, colour-blind aware).
+SERIES_COLORS = ["#E3B341", "#2DD4BF", "#8B7CF6", "#58A6FF", "#F778BA", "#3FB950"]
 
 # ---------------------------------------------------------------------------
 # METRIC REGISTRY

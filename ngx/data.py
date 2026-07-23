@@ -145,6 +145,39 @@ def provenance(company: str, year: int) -> dict:
 
 
 @_cache
+def sector_stats(year: int | None = None) -> list[dict]:
+    """Per-sector aggregates for one year, richest sector first (by revenue)."""
+    df = load()
+    if year is None:
+        year = int(df["year"].max())
+    rows = df[df["year"] == year]
+    out = []
+    for sec, g in rows.groupby("sector"):
+        rev = g["gross_earnings"]
+        top_i = rev.idxmax() if rev.notna().any() else None
+        out.append({
+            "sector": sec,
+            "n": int(g["company"].nunique()),
+            "revenue": float(rev.sum()) if rev.notna().any() else None,
+            "pat": float(g["profit_after_tax"].sum()) if g["profit_after_tax"].notna().any() else None,
+            "median_roe": float(g["roe"].median()) if g["roe"].notna().any() else None,
+            "median_margin": float(g["net_margin"].median()) if g["net_margin"].notna().any() else None,
+            "top_company": g.loc[top_i, "company"] if top_i is not None else None,
+        })
+    out.sort(key=lambda r: (r["revenue"] is not None, r["revenue"] or 0), reverse=True)
+    return out
+
+
+@_cache
+def latest_frame(year: int | None = None):
+    """Rows for a single year (defaults to the latest)."""
+    df = load()
+    if year is None:
+        year = int(df["year"].max())
+    return df[df["year"] == year].copy()
+
+
+@_cache
 def dataset_summary() -> dict:
     df = load()
     return {

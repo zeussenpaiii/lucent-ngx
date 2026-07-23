@@ -85,6 +85,55 @@ def vs_sector_median(company: str, sector: str, metric: str, year: int) -> tuple
     return data.value(company, metric, year), data.sector_median(sector, metric, year)
 
 
+def company_cagr(company: str, metric: str) -> float | None:
+    return cagr(data.series(company, metric))
+
+
+def biggest_movers(metric: str = "gross_earnings", min_years: int = 3) -> list[tuple[str, float, float | None]]:
+    """(company, CAGR, latest value) for every company, best growth first."""
+    rows = []
+    for c in data.companies():
+        s = data.series(c, metric)
+        g = cagr(s)
+        if g is not None and len(s) >= min_years:
+            rows.append((c, g, data.latest_value(c, metric)[0]))
+    rows.sort(key=lambda r: r[1], reverse=True)
+    return rows
+
+
+def margin_movers() -> list[tuple[str, float]]:
+    """(company, net-margin change first->last), biggest expansion first."""
+    rows = []
+    for c in data.companies():
+        s = data.series(c, "net_margin")
+        if len(s) >= 3:
+            ys = sorted(s)
+            rows.append((c, s[ys[-1]] - s[ys[0]]))
+    rows.sort(key=lambda r: r[1], reverse=True)
+    return rows
+
+
+def market_summary() -> dict:
+    """Headline, market-level facts for the home hero."""
+    df = data.load()
+    yN = int(df["year"].max())
+    latest = df[df["year"] == yN]
+    combined_rev = float(latest["gross_earnings"].sum())
+    roe_vals = latest["roe"].dropna()
+    pat_vals = latest["profit_after_tax"].dropna()
+    growths = [g for _, g, _ in biggest_movers("gross_earnings")]
+    median_growth = sorted(growths)[len(growths) // 2] if growths else None
+    profitable = int((pat_vals > 0).sum())
+    return {
+        "year": yN,
+        "combined_revenue": combined_rev,
+        "median_roe": float(roe_vals.median()) if len(roe_vals) else None,
+        "median_growth": median_growth,
+        "profitable": profitable,
+        "total_reporting": int(pat_vals.shape[0]),
+    }
+
+
 def equity_ratio(company: str, year: int) -> float | None:
     eq = data.value(company, "total_equity", year)
     ta = data.value(company, "total_assets", year)

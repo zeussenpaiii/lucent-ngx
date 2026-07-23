@@ -1,73 +1,59 @@
 """
-app.py — NGX Intelligence Workspace (controller / entry point).
+app.py — Lucent · NGX Financial Intelligence (controller / entry point).
 
-Single-controller Streamlit app: global config + CSS, a sidebar navigator, and
-routing to view modules. Run with:  streamlit run app.py
+Single-controller Streamlit app: global design system, a branded sidebar
+navigator, and routing to view modules. Run with:  streamlit run app.py
 """
 from __future__ import annotations
 import streamlit as st
 
-from ngx import config, state
+from ngx import config, state, brand
 from ngx.config import THEME
-from ngx.views import home, company, compare, rankings, glossary_view
+from ngx.views import home, company, compare, rankings, screener, sector, glossary_view
 
-st.set_page_config(page_title=config.APP_NAME, page_icon="📊", layout="wide",
-                   initial_sidebar_state="expanded")
-
-
-def _css() -> None:
-    st.markdown(
-        f"""<style>
-        .stApp {{ background:{THEME['bg']}; }}
-        .block-container {{ padding-top:2.4rem; padding-bottom:3rem; max-width:1180px; }}
-        section[data-testid="stSidebar"] {{ background:{THEME['panel']}; border-right:1px solid {THEME['border']}; }}
-        h1,h2,h3,h4 {{ color:{THEME['text']}; }}
-        /* list-style buttons */
-        .stButton > button {{
-            background:transparent; border:1px solid transparent; color:{THEME['text']};
-            text-align:left; justify-content:flex-start; padding:4px 8px; font-size:13.5px;
-            border-radius:6px; font-weight:400;
-        }}
-        .stButton > button:hover {{ background:{THEME['panel2']}; border-color:{THEME['border']}; color:{THEME['text']}; }}
-        div[data-testid="stExpander"] {{ border:1px solid {THEME['border']}; border-radius:8px; background:{THEME['panel']}; }}
-        .stTabs [data-baseweb="tab-list"] {{ gap:4px; }}
-        .stTabs [data-baseweb="tab"] {{ color:{THEME['muted']}; }}
-        [data-testid="stMetricValue"] {{ color:{THEME['text']}; }}
-        </style>""",
-        unsafe_allow_html=True,
-    )
+st.set_page_config(page_title=f"{config.BRAND} · {config.APP_DESCRIPTOR}",
+                   page_icon="◆", layout="wide", initial_sidebar_state="expanded")
 
 
 def _sidebar() -> None:
     with st.sidebar:
-        st.markdown(f"<div style='font-size:18px;font-weight:800;color:{THEME['text']}'>📊 NGX</div>"
-                    f"<div style='color:{THEME['muted']};font-size:12px;margin-bottom:14px'>"
-                    "Intelligence Workspace</div>", unsafe_allow_html=True)
+        st.markdown(brand.wordmark(20), unsafe_allow_html=True)
+        st.markdown(f"<div style='color:{THEME['faint']};font-size:11.5px;letter-spacing:.3px;"
+                    f"text-transform:uppercase;margin:2px 0 16px 2px'>{config.APP_DESCRIPTOR}</div>",
+                    unsafe_allow_html=True)
+
         st.radio("Navigate", state.PAGES, key="nav_radio", label_visibility="collapsed")
 
         if st.session_state.get("company"):
-            st.markdown("---")
-            st.caption("Current company")
-            st.markdown(f"**{config.display_name(st.session_state['company'])}**")
+            comp = st.session_state["company"]
+            st.markdown(f"<div style='margin-top:14px;padding:10px 12px;background:{THEME['panel']};"
+                        f"border:1px solid {THEME['border']};border-radius:10px'>"
+                        f"<div style='font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;"
+                        f"color:{THEME['faint']}'>Viewing</div>"
+                        f"<div style='color:{THEME['text']};font-weight:600;font-size:14px;margin-top:2px'>"
+                        f"{config.display_name(comp)}</div></div>", unsafe_allow_html=True)
 
-        st.markdown("---")
-        st.caption("35 companies · 12 sectors · 2021–2025 · offline dataset. "
-                   "Educational prototype, not investment advice.")
+        st.markdown(
+            f"<div style='position:relative;margin-top:22px;padding-top:14px;border-top:1px solid {THEME['border']};"
+            f"color:{THEME['faint']};font-size:11px;line-height:1.5'>"
+            f"35 companies · 12 sectors · 2021–2025<br>Offline dataset · figures from filings<br>"
+            f"<span style='color:{THEME['muted']}'>Educational tool — not investment advice.</span><br>"
+            f"<span style='color:{THEME['faint']}'>© {config.BRAND_YEAR} {config.BRAND}</span></div>",
+            unsafe_allow_html=True)
 
 
 def main() -> None:
     state.init()
     state.apply_pending()   # consume queued navigation before any widget exists
-    _css()
+    st.markdown(brand.global_css(), unsafe_allow_html=True)
     _sidebar()
-
-    from ngx import ui
-    ui.disclaimer()
 
     router = {
         "Home": home.render,
         "Company": company.render,
         "Compare": compare.render,
+        "Sectors": sector.render,
+        "Screener": screener.render,
         "Rankings": rankings.render,
         "Glossary": glossary_view.render,
     }

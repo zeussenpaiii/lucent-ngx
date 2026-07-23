@@ -2,7 +2,7 @@
 from __future__ import annotations
 import streamlit as st
 
-from .. import config, data, charts, narrative, state, ui
+from .. import config, data, charts, narrative, report, state, ui
 from ..config import THEME, display_name, profile_for
 
 
@@ -18,12 +18,16 @@ def render() -> None:
     profile = profile_for(sector)
     year = data.latest_year(company)
 
-    top = st.columns([5, 1])
+    top = st.columns([5, 1.1, 1.1])
     with top[0]:
         ui.company_header(company)
     with top[1]:
         if st.button("＋ Compare", use_container_width=True):
             state.add_to_compare(company)
+    with top[2]:
+        st.download_button("⬇ Report", data=report.company_report_html(company),
+                           file_name=f"{display_name(company).replace(' ', '_')}_Lucent.html",
+                           mime="text/html", use_container_width=True)
 
     ui.confidence_badge(company, year)
     ui.kpi_row(company)

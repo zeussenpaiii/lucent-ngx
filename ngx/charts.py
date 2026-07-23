@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 from . import config, data
 from .config import METRICS, THEME, SERIES_COLORS
 
-_FONT = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+_FONT = "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
 
 
 def _layout(fig: go.Figure, title: str, ytitle: str = "", height: int = 300) -> go.Figure:

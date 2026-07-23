@@ -1,48 +1,107 @@
 """
-ui.py — Reusable Streamlit UI components with the dark, high-density look.
+ui.py — Reusable Lucent UI components (dark, editorial, high-signal).
 
-Everything user-facing (cards, badges, tables, empty/loading states) lives here
-so pages stay declarative and the styling is consistent.
+Everything user-facing (cards, sparklines, badges, tables, empty states) lives
+here so pages stay declarative and the styling stays consistent with brand.py.
 """
 from __future__ import annotations
 import streamlit as st
 
-from . import config, data, glossary
+from . import config, data, glossary, state
 from . import format as fmt
 from .config import METRICS, THEME, display_name, ticker, profile_for
 
 
-# --------------------------------------------------------------------------
-def disclaimer() -> None:
+# ---------------------------------------------------------------------------
+def sparkline(series: dict[int, float], color: str, width: int = 130, height: int = 34) -> str:
+    """Tiny inline trend line for a {year: value} series."""
+    ys = sorted(series)
+    pts = [series[y] for y in ys]
+    if len(pts) < 2:
+        return ""
+    lo, hi = min(pts), max(pts)
+    rng = (hi - lo) or 1
+    n = len(pts)
+    coords = [((i / (n - 1)) * (width - 6) + 3,
+               (height - 3) - ((v - lo) / rng) * (height - 6)) for i, v in enumerate(pts)]
+    poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in coords)
+    area = f"3,{height-3} " + poly + f" {width-3},{height-3}"
+    lx, ly = coords[-1]
+    uid = f"{color[1:]}{width}{int(lx)}{int(ly)}"
+    return (
+        f"<svg width='{width}' height='{height}' viewBox='0 0 {width} {height}' "
+        f"style='display:block'><defs><linearGradient id='g{uid}' x1='0' y1='0' x2='0' y2='1'>"
+        f"<stop offset='0' stop-color='{color}' stop-opacity='0.22'/>"
+        f"<stop offset='1' stop-color='{color}' stop-opacity='0'/></linearGradient></defs>"
+        f"<polygon points='{area}' fill='url(#g{uid})'/>"
+        f"<polyline points='{poly}' fill='none' stroke='{color}' stroke-width='1.8' "
+        f"stroke-linecap='round' stroke-linejoin='round'/>"
+        f"<circle cx='{lx:.1f}' cy='{ly:.1f}' r='2.4' fill='{color}'/></svg>"
+    )
+
+
+def _card(label: str, value: str, delta_html: str = "", sub: str = "", spark: str = "") -> None:
     st.markdown(
         f"""<div style="background:{THEME['panel']};border:1px solid {THEME['border']};
-        border-left:3px solid {THEME['warn']};border-radius:6px;padding:8px 12px;margin:4px 0 14px;
-        font-size:12px;color:{THEME['muted']}">
-        <b style="color:{THEME['text']}">Educational prototype.</b> Historical figures (2021–2025) from
-        company filings — <b>not investment advice</b>. Ratios use the dataset's stored
-        (average-balance) values.</div>""",
+        border-radius:12px;padding:13px 15px;height:100%">
+        <div style="font-size:11.5px;color:{THEME['muted']};text-transform:uppercase;
+        letter-spacing:.4px;margin-bottom:6px">{label}</div>
+        <div class="lux-num" style="font-size:23px;font-weight:600;color:{THEME['text']};
+        line-height:1.05">{value}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
+        <div>{delta_html} <span style="color:{THEME['faint']};font-size:11px">{sub}</span></div>
+        <div style="opacity:.9">{spark}</div></div></div>""",
         unsafe_allow_html=True,
     )
 
 
+def pill(text: str, color: str, bg: str | None = None) -> str:
+    bg = bg or THEME["panel2"]
+    return (f"<span style='background:{bg};color:{color};padding:2px 8px;border-radius:20px;"
+            f"font-size:11px;font-weight:600;white-space:nowrap'>{text}</span>")
+
+
+def section_title(text: str, sub: str = "") -> None:
+    extra = (f"<span style='color:{THEME['faint']};font-size:13px;font-weight:400;margin-left:8px'>"
+             f"{sub}</span>") if sub else ""
+    st.markdown(f"<div style='margin:20px 0 8px'><span style='font-size:15px;font-weight:600;"
+                f"color:{THEME['text']}'>{text}</span>{extra}</div>", unsafe_allow_html=True)
+
+
+def empty_state(msg: str, hint: str = "") -> None:
+    st.markdown(
+        f"""<div style="background:{THEME['panel']};border:1px dashed {THEME['border2']};
+        border-radius:12px;padding:30px;text-align:center;color:{THEME['muted']};margin:8px 0">
+        <div style="font-size:15px;color:{THEME['text']};margin-bottom:4px">{msg}</div>
+        <div style="font-size:12.5px">{hint}</div></div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def disclaimer() -> None:
+    st.markdown(
+        f"<div style='color:{THEME['faint']};font-size:11.5px;margin:6px 0 2px'>"
+        f"Educational summary generated from 2021–2025 filings — not investment advice.</div>",
+        unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
 def company_header(company: str) -> None:
     sector = data.company_sector(company)
     tk = ticker(company)
     fye = config.NON_DECEMBER_FYE.get(company)
     partial = len(data.years_for(company)) < len(config.YEARS)
-    chips = [f"<span style='color:{THEME['muted']}'>{sector}</span>"]
+    chips = [f"<span style='color:{THEME['muted']};font-size:13px'>{sector}</span>"]
     if tk:
-        chips.append(f"<span style='background:{THEME['panel2']};padding:1px 7px;border-radius:4px;"
-                     f"font-size:12px;color:{THEME['text']}'>{tk}</span>")
+        chips.append(pill(tk, THEME["text"], THEME["panel2"]))
     if fye:
-        chips.append(f"<span style='color:{THEME['warn']};font-size:12px'>FY-end {fye}</span>")
+        chips.append(pill(f"FY-end {fye}", THEME["accent"], THEME["accent_soft"]))
     if partial:
         yrs = data.years_for(company)
-        chips.append(f"<span style='color:{THEME['warn']};font-size:12px'>Limited history "
-                     f"({min(yrs)}–{max(yrs)})</span>")
+        chips.append(pill(f"Limited history {min(yrs)}–{max(yrs)}", THEME["accent"], THEME["accent_soft"]))
     st.markdown(
-        f"<h2 style='margin:0 0 2px'>{display_name(company)}</h2>"
-        f"<div style='display:flex;gap:12px;align-items:center;margin-bottom:6px'>{' · '.join(chips)}</div>",
+        f"<h1 style='margin:0 0 4px;font-size:30px'>{display_name(company)}</h1>"
+        f"<div style='display:flex;gap:10px;align-items:center;margin-bottom:2px'>{' '.join(chips)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -56,12 +115,11 @@ def confidence_badge(company: str, year: int) -> None:
         "unavailable": (THEME["muted"], "Not available"),
     }.get(status, (THEME["muted"], status or "—"))
     ocr = (p.get("type") or "").strip().upper() == "OCR"
-    ocr_chip = (f"<span style='background:{THEME['panel2']};color:{THEME['warn']};padding:1px 6px;"
-                f"border-radius:4px;font-size:11px;margin-left:6px'>OCR-extracted</span>") if ocr else ""
+    ocr_chip = "  " + pill("OCR-extracted", THEME["accent"], THEME["accent_soft"]) if ocr else ""
     st.markdown(
-        f"""<div style="font-size:12px;color:{THEME['muted']};margin:2px 0 6px">
-        Data confidence (FY{year}):
-        <span style="color:{color};font-weight:600">● {label}</span>{ocr_chip}</div>""",
+        f"<div style='font-size:12px;color:{THEME['faint']};margin:8px 0 4px'>"
+        f"Data confidence · FY{year} &nbsp;"
+        f"<span style='color:{color};font-weight:600'>● {label}</span>{ocr_chip}</div>",
         unsafe_allow_html=True,
     )
     log = (p.get("correction_log") or "").strip()
@@ -78,11 +136,10 @@ def confidence_badge(company: str, year: int) -> None:
                     st.markdown(f"- {part}")
 
 
-# --------------------------------------------------------------------------
 def _delta_html(key: str, new, old) -> str:
     d = fmt.delta_pct(new, old)
     if d is None:
-        return f"<span style='color:{THEME['muted']};font-size:12px'>—</span>"
+        return f"<span style='color:{THEME['faint']};font-size:12px'>—</span>"
     good = METRICS.get(key, {}).get("good")
     up = d >= 0
     if good == "up":
@@ -91,42 +148,37 @@ def _delta_html(key: str, new, old) -> str:
         color = THEME["neg"] if up else THEME["pos"]
     else:
         color = THEME["muted"]
-    arrow = "▲" if up else "▼"
-    return f"<span style='color:{color};font-size:12px'>{arrow} {fmt.pct(abs(d))}</span>"
+    return f"<span style='color:{color};font-size:12px;font-weight:600'>{'▲' if up else '▼'} {fmt.pct(abs(d))}</span>"
 
 
 def kpi_row(company: str) -> None:
     cols = st.columns(len(config.KPI_CARDS))
     for col, key in zip(cols, config.KPI_CARDS):
         s = data.series(company, key)
-        if not s:
-            with col:
-                _card(METRICS[key]["short"], fmt.DASH, "")
-            continue
-        ys = sorted(s)
-        last = s[ys[-1]]
-        prev = s[ys[-2]] if len(ys) >= 2 else None
         with col:
+            if not s:
+                _card(METRICS[key]["short"], fmt.DASH)
+                continue
+            ys = sorted(s)
+            last = s[ys[-1]]
+            prev = s[ys[-2]] if len(ys) >= 2 else None
+            # sparkline colour: trend direction weighted by whether up is good
+            good = METRICS[key].get("good")
+            rising = len(ys) >= 2 and s[ys[-1]] >= s[ys[0]]
+            spark_color = THEME["muted"]
+            if good == "up":
+                spark_color = THEME["pos"] if rising else THEME["neg"]
+            elif good == "down":
+                spark_color = THEME["neg"] if rising else THEME["pos"]
+            else:
+                spark_color = THEME["accent"]
             _card(METRICS[key]["short"], fmt.metric(key, last),
-                  _delta_html(key, last, prev), sub=f"FY{ys[-1]}")
+                  _delta_html(key, last, prev), sub=f"FY{ys[-1]}",
+                  spark=sparkline(s, spark_color))
 
 
-def _card(label: str, value: str, delta_html: str, sub: str = "") -> None:
-    st.markdown(
-        f"""<div style="background:{THEME['panel']};border:1px solid {THEME['border']};
-        border-radius:8px;padding:12px 14px;height:100%">
-        <div style="font-size:12px;color:{THEME['muted']};margin-bottom:4px">{label}</div>
-        <div style="font-size:20px;font-weight:700;color:{THEME['text']};line-height:1.1">{value}</div>
-        <div style="margin-top:4px">{delta_html} <span style="color:{THEME['muted']};font-size:11px">{sub}</span></div>
-        </div>""",
-        unsafe_allow_html=True,
-    )
-
-
-# --------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 def statement_table(company: str, group: str, title: str) -> None:
-    """Render one statement group (income/balance/cashflow/ratio) as a
-    year-over-year table, showing only rows that have data for this company."""
     profile = profile_for(data.company_sector(company))
     keys = config.PROFILES[profile][group]
     years = data.years_for(company)
@@ -136,41 +188,42 @@ def statement_table(company: str, group: str, title: str) -> None:
     for key in keys:
         s = data.series(company, key)
         if not s:
-            continue  # skip metrics this company doesn't report
+            continue
         defn = glossary.define(key)
         tip = (defn["definition"] if defn else "")
         cells = "".join(
-            f"<td style='text-align:right;padding:5px 10px;color:{THEME['text']}'>"
+            f"<td class='lux-num' style='text-align:right;padding:6px 12px;color:{THEME['text']}'>"
             f"{fmt.metric(key, s.get(y))}</td>" for y in years
         )
         rows_html.append(
             f"<tr style='border-top:1px solid {THEME['grid']}'>"
-            f"<td style='padding:5px 10px;color:{THEME['muted']}' title=\"{tip}\">{METRICS[key]['label']}</td>"
+            f"<td style='padding:6px 12px;color:{THEME['muted']}' title=\"{tip}\">{METRICS[key]['label']}</td>"
             f"{cells}</tr>"
         )
     if not rows_html:
         return
-    head = "".join(f"<th style='text-align:right;padding:5px 10px;color:{THEME['muted']};"
-                   f"font-weight:600'>FY{y}</th>" for y in years)
-    st.markdown(f"<div style='font-size:13px;font-weight:700;color:{THEME['text']};margin:10px 0 2px'>{title}</div>",
+    head = "".join(f"<th style='text-align:right;padding:6px 12px;color:{THEME['faint']};"
+                   f"font-weight:600;font-size:12px'>FY{y}</th>" for y in years)
+    st.markdown(f"<div style='font-size:13px;font-weight:600;color:{THEME['text']};margin:16px 0 2px'>{title}</div>",
                 unsafe_allow_html=True)
     st.markdown(
         f"""<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr><th style='text-align:left;padding:5px 10px;color:{THEME['muted']}'></th>{head}</tr></thead>
+        <thead><tr><th style='text-align:left;padding:6px 12px'></th>{head}</tr></thead>
         <tbody>{''.join(rows_html)}</tbody></table></div>""",
         unsafe_allow_html=True,
     )
 
 
-def empty_state(msg: str, hint: str = "") -> None:
-    st.markdown(
-        f"""<div style="background:{THEME['panel']};border:1px dashed {THEME['border']};
-        border-radius:8px;padding:28px;text-align:center;color:{THEME['muted']};margin:8px 0">
-        <div style="font-size:15px;color:{THEME['text']};margin-bottom:4px">{msg}</div>
-        <div style="font-size:12px">{hint}</div></div>""",
-        unsafe_allow_html=True,
-    )
-
-
-def section_title(text: str) -> None:
-    st.markdown(f"<h4 style='margin:14px 0 4px;color:{THEME['text']}'>{text}</h4>", unsafe_allow_html=True)
+def company_button(company: str, key_prefix: str, right: str = "", right_color: str | None = None) -> None:
+    """A clickable company row with an optional right-aligned value."""
+    if right:
+        c1, c2 = st.columns([5, 2])
+        with c1:
+            if st.button(display_name(company), key=f"{key_prefix}_{company}", use_container_width=True):
+                state.open_company(company)
+        c2.markdown(f"<div class='lux-num' style='text-align:right;padding-top:7px;"
+                    f"color:{right_color or THEME['text']};font-weight:600'>{right}</div>",
+                    unsafe_allow_html=True)
+    else:
+        if st.button(display_name(company), key=f"{key_prefix}_{company}", use_container_width=True):
+            state.open_company(company)
