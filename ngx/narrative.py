@@ -70,6 +70,7 @@ def generate(company: str) -> dict:
     neg_equity = eq_last is not None and eq_last <= 0
     thin_equity = equity_ratio is not None and 0 < equity_ratio < 0.05
     distorted = neg_equity or thin_equity
+    margin_note = metrics.margin_caution(company, yN)
 
     out: dict = {}
 
@@ -130,7 +131,9 @@ def generate(company: str) -> dict:
     p = []
     if nm_last is not None:
         p.append(f"Net margin is {fmt.pct(nm_last)}.")
-        if len(nm_series) >= 2:
+        if margin_note:
+            p.append(margin_note[0].upper() + margin_note[1:] + ".")
+        elif len(nm_series) >= 2:
             first = nm_series[min(nm_series)]
             chg = nm_last - first
             direction = "expanded" if chg > 0.005 else ("compressed" if chg < -0.005 else "held broadly steady")
@@ -192,7 +195,7 @@ def generate(company: str) -> dict:
         strengths.append("Returns above the sector median.")
     if roa_last is not None and roa_last >= 0.10:
         strengths.append(f"Strong return on assets ({fmt.pct(roa_last)}).")
-    if nm_last is not None and nm_last >= 0.15:
+    if not margin_note and nm_last is not None and 0.15 <= nm_last <= 1.0:
         strengths.append(f"Healthy net margin ({fmt.pct(nm_last)}).")
     if len(dps) >= max(2, len(years) - 1) and all(v > 0 for v in dps.values()):
         strengths.append("Consistent dividend payer across the period.")
@@ -228,6 +231,9 @@ def generate(company: str) -> dict:
         risks.append("As a bank, results are exposed to credit quality, FX and regulatory policy.")
     if config.NON_DECEMBER_FYE.get(company):
         risks.append(f"Reports on a non-December year-end ({config.NON_DECEMBER_FYE[company]}); periods aren't directly comparable to December filers.")
+    if margin_note:
+        risks.append("Latest profit is boosted by one-off/non-operating gains — underlying operating "
+                     "profitability is materially lower.")
     risks.append("Figures are historical (2021–2025) and do not reflect events after the last reporting date.")
 
     out["Strengths"] = strengths or ["No standout strengths flagged by the rules."]

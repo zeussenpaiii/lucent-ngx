@@ -99,6 +99,8 @@ def company_header(company: str) -> None:
     if partial:
         yrs = data.years_for(company)
         chips.append(pill(f"Limited history {min(yrs)}–{max(yrs)}", THEME["accent"], THEME["accent_soft"]))
+    if company in config.USD_REPORTED:
+        chips.append(pill(config.USD_REPORTED[company], THEME["accent"], THEME["accent_soft"]))
     st.markdown(
         f"<h1 style='margin:0 0 4px;font-size:30px'>{display_name(company)}</h1>"
         f"<div style='display:flex;gap:10px;align-items:center;margin-bottom:2px'>{' '.join(chips)}</div>",

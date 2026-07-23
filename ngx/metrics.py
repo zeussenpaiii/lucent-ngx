@@ -146,6 +146,21 @@ def roe_not_meaningful(company: str, year: int) -> bool:
     return er is not None and er < 0.05
 
 
+def margin_caution(company: str, year: int) -> str | None:
+    """Flag a net margin inflated by one-off / non-operating gains.
+
+    A net margin above 100% (profit exceeds revenue) is a red flag that earnings
+    include large non-operating items — e.g. Aradel FY2025, where ~73% of pre-tax
+    profit was a bargain-purchase / translation gain from acquisitions.
+    """
+    nm = data.value(company, "net_margin", year)
+    rev = data.value(company, "gross_earnings", year)
+    pat = data.value(company, "profit_after_tax", year)
+    if (nm is not None and nm > 1.0) or (rev and pat and pat > rev):
+        return "Net margin exceeds 100% — profit is inflated by one-off/non-operating gains; operating margin is the truer guide"
+    return None
+
+
 def roe_caution(company: str, year: int, roe: float | None = None) -> str | None:
     """Short caution if a ROE should be read with care, else None.
 

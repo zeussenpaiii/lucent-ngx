@@ -27,6 +27,41 @@ YEAR_MIN, YEAR_MAX = 2021, 2025
 # Columns that are 100% empty across the dataset — carry no information.
 DEAD_COLS = ["page_method", "needs_review", "missing", "repair_notes", "ocr_dependent"]
 
+# --- sourced corrections ---------------------------------------------------
+# Ecobank (ETI) reports in US dollars; the extractor stored USD figures under an
+# NGN label, so its absolute values looked ~1000x too small. Convert every
+# monetary column to NGN at World Bank official annual-average USD/NGN rates.
+# Ratios (ROE/ROA/margins) are unit-independent and already correct, so we leave
+# them; converting all money columns by one rate/year keeps A=L+E and ratios
+# consistent. Figures are therefore approximate (ETI is a pan-African group).
+# Verified: 2024 PAT $0.49bn x1478 ~= N724bn vs reported N735.9bn.
+# Sources: nairametrics.com (ETI FY2024), World Bank PA.NUS.FCRF (rates).
+ETI_USD_NGN = {2021: 401.0, 2022: 426.0, 2023: 645.0, 2024: 1478.0, 2025: 1535.0}
+_MONEY_COLS = [
+    "gross_earnings", "net_interest_income", "cost_of_sales", "operating_expenses",
+    "depreciation_amortization", "finance_cost", "impairment_loan_loss", "profit_before_tax",
+    "profit_after_tax", "total_assets", "current_assets", "total_liabilities", "current_liabilities",
+    "interest_bearing_debt", "total_equity", "retained_earnings", "cash_and_equivalents",
+    "net_cash_from_operations", "net_cash_from_investing", "net_cash_from_financing", "capex",
+    "gross_profit", "operating_profit", "income_tax_expense", "customer_deposits", "net_loans_advances",
+    "net_premium_income", "net_claims_incurred", "aum", "nav_total", "nci_profit_after_tax",
+    "nci_total_equity", "working_capital", "free_cash_flow", "ebitda",
+    "eps_basic", "dividend_per_share", "nav_per_unit",  # per-share amounts are also USD
+]
+
+
+def _apply_corrections(df: pd.DataFrame) -> pd.DataFrame:
+    eti = df["company"] == "ECO BANK"
+    for yr, rate in ETI_USD_NGN.items():
+        m = eti & (df["year"] == yr)
+        for col in _MONEY_COLS:
+            if col in df.columns:
+                df.loc[m, col] = pd.to_numeric(df.loc[m, col], errors="coerce") * rate
+    n = int(eti.sum())
+    if n:
+        print(f"[FIX] Ecobank (ETI): converted {n} rows USD->NGN at annual-average rates")
+    return df
+
 
 def main() -> int:
     if not SOURCE.exists():
@@ -42,6 +77,9 @@ def main() -> int:
 
     # Drop empty scaffolding columns if present.
     df = df.drop(columns=[c for c in DEAD_COLS if c in df.columns])
+
+    # Apply sourced/web-verified corrections.
+    df = _apply_corrections(df)
 
     # Stable ordering: company, then year.
     df = df.sort_values(["company", "year"]).reset_index(drop=True)

@@ -134,14 +134,12 @@ def provenance(company: str, year: int) -> dict:
     if not len(hit):
         return {}
     r = hit.iloc[0]
-    return {
-        "type": r.get("type", ""),
-        "status": r.get("status", ""),
-        "status_reason": r.get("status_reason", ""),
-        "balance_check": r.get("balance_check", ""),
-        "pages": r.get("pages", ""),
-        "correction_log": r.get("correction_log", "") if pd.notna(r.get("correction_log", None)) else "",
-    }
+
+    def _s(col: str) -> str:
+        v = r.get(col, "")
+        return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)
+
+    return {k: _s(k) for k in ["type", "status", "status_reason", "balance_check", "pages", "correction_log"]}
 
 
 @_cache

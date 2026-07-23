@@ -238,6 +238,13 @@ NON_DECEMBER_FYE = {
     "AIRTEL AFRICA": "31 March",
 }
 
+# Companies that report in a currency other than NGN. Their absolute figures are
+# converted to Naira at annual-average rates in scripts/prepare_data.py, so they
+# are approximate; ratios are unaffected. Surfaced as a transparency chip.
+USD_REPORTED = {
+    "ECO BANK": "Reports in USD · converted to NGN",
+}
+
 
 def profile_for(sector: str) -> str:
     return SECTOR_TO_PROFILE.get(sector, DEFAULT_PROFILE)
