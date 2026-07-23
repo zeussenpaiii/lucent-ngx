@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Local virtual environment (never share this — it's rebuilt from requirements.txt)
+.venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Streamlit local secrets (if ever added)
+.streamlit/secrets.toml
+
+# Claude launch config (local only)
+.claude/
