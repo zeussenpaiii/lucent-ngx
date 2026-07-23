@@ -92,6 +92,46 @@ def _apply_corrections(df: pd.DataFrame) -> pd.DataFrame:
         print(f"[FIX] {company}: {int(rows.sum())} rows converted USD->NGN")
     if fixed:
         print(f"[FIX] total {fixed} rows corrected across {len(USD_COMPANIES)} USD reporters")
+
+    df = _fix_axa_mansard_2025(df)
+    return df
+
+
+def _fix_axa_mansard_2025(df: pd.DataFrame) -> pd.DataFrame:
+    """AXA Mansard FY2025: restore the published profit after tax.
+
+    Revenue (N160.565bn) and PBT (N6.121bn) match the audited accounts exactly,
+    but the extracted tax charge (N3.49bn) omitted a deferred-tax adjustment
+    caused by capital gains tax rising 10% -> 30%. That overstated PAT as
+    N2.63bn; the company reported N0.62bn (a 98% decline).
+    Source: nairametrics.com, AXA Mansard FY2025 results (Apr 2026).
+    """
+    m = (df["company"] == "AXA MANSARD INSURANCE") & (df["year"] == 2025)
+    if not m.any():
+        return df
+    old_pat = float(pd.to_numeric(df.loc[m, "profit_after_tax"], errors="coerce").iloc[0])
+    pbt = float(pd.to_numeric(df.loc[m, "profit_before_tax"], errors="coerce").iloc[0])
+    new_pat = 620_000_000.0
+    if not old_pat or old_pat != old_pat:
+        return df
+    scale = new_pat / old_pat
+
+    df.loc[m, "profit_after_tax"] = new_pat
+    df.loc[m, "income_tax_expense"] = pbt - new_pat
+
+    rev = pd.to_numeric(df.loc[m, "gross_earnings"], errors="coerce")
+    shares = pd.to_numeric(df.loc[m, "shares_outstanding"], errors="coerce")
+    dps = pd.to_numeric(df.loc[m, "dividend_per_share"], errors="coerce")
+
+    df.loc[m, "net_margin"] = new_pat / rev
+    # ROE/ROA keep their average-balance denominators, so they scale with PAT
+    for col in ("roe", "roa"):
+        df.loc[m, col] = pd.to_numeric(df.loc[m, col], errors="coerce") * scale
+    eps = new_pat / shares
+    df.loc[m, "eps_basic"] = eps
+    df.loc[m, "payout_ratio"] = dps / eps
+
+    print(f"[FIX] AXA Mansard FY2025: PAT N{old_pat/1e9:.2f}bn -> N{new_pat/1e9:.2f}bn (published)")
     return df
 
 

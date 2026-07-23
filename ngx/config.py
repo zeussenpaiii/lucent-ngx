@@ -247,6 +247,12 @@ USD_REPORTED = {
     "AIRTEL AFRICA": "Reports in USD · converted to NGN",
 }
 
+# Companies whose latest reported period is not a normal 12 months, so the
+# figures aren't directly comparable to a full-year filer.
+PERIOD_NOTE = {
+    "GUINNESS NIG": "FY2025 covers 18 months (year-end moved June → December)",
+}
+
 
 def profile_for(sector: str) -> str:
     return SECTOR_TO_PROFILE.get(sector, DEFAULT_PROFILE)
