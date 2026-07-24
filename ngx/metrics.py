@@ -205,6 +205,50 @@ def dividend_market_summary() -> dict:
     }
 
 
+@lru_cache(maxsize=None)
+def rank_in_sector(company: str, metric: str, year: int,
+                   higher_is_better: bool = True) -> tuple[int, int] | None:
+    """(rank, peers) for a company's metric within its sector. 1 = best."""
+    sector = data.company_sector(company)
+    peers = []
+    for c in data.sector_members(sector):
+        v = data.value(c, metric, year)
+        if v is not None:
+            peers.append((c, v))
+    if len(peers) < 3:
+        return None
+    peers.sort(key=lambda r: r[1], reverse=higher_is_better)
+    for i, (c, _) in enumerate(peers, start=1):
+        if c == company:
+            return i, len(peers)
+    return None
+
+
+@lru_cache(maxsize=None)
+def sector_median_cagr(sector: str, metric: str) -> float | None:
+    """Median growth rate across a sector — the bar a company should beat."""
+    vals = []
+    for c in data.sector_members(sector):
+        g = cagr(data.series(c, metric))
+        if g is not None:
+            vals.append(g)
+    if not vals:
+        return None
+    vals.sort()
+    return vals[len(vals) // 2]
+
+
+def turnaround_year(company: str) -> int | None:
+    """Year the company swung from loss to profit (most recent such flip)."""
+    s = data.series(company, "profit_after_tax")
+    ys = sorted(s)
+    flip = None
+    for i in range(1, len(ys)):
+        if s[ys[i - 1]] < 0 <= s[ys[i]]:
+            flip = ys[i]
+    return flip
+
+
 def equity_ratio(company: str, year: int) -> float | None:
     eq = data.value(company, "total_equity", year)
     ta = data.value(company, "total_assets", year)

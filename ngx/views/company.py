@@ -2,7 +2,7 @@
 from __future__ import annotations
 import streamlit as st
 
-from .. import config, data, charts, metrics, narrative, report, state, ui
+from .. import config, data, charts, insights, metrics, narrative, report, state, ui
 from ..config import THEME, display_name, profile_for
 
 
@@ -31,6 +31,7 @@ def render() -> None:
 
     ui.confidence_badge(company, year)
     ui.kpi_row(company)
+    _standout(company)
 
     tabs = st.tabs(["Snapshot & Charts", "Financial Statements", "AI Analysis"])
 
@@ -82,6 +83,28 @@ def _charts(company: str, sector: str, profile: str) -> None:
                                      "Equity vs liabilities"))
 
     _dividends(company, show)
+
+
+def _standout(company: str) -> None:
+    """Peer-relative findings — the bit that should feel like an analyst, not a table."""
+    items = insights.for_company(company)
+    if not items:
+        return
+    colours = {"pos": THEME["pos"], "neg": THEME["neg"], "warn": THEME["accent"], "info": THEME["muted"]}
+    rows = "".join(
+        f"<div style='display:flex;gap:9px;align-items:flex-start;padding:5px 0'>"
+        f"<span style='color:{colours.get(tone, THEME['muted'])};font-size:15px;line-height:1.2'>•</span>"
+        f"<span style='color:{THEME['text']};font-size:13.5px;line-height:1.45'>{text}</span></div>"
+        for tone, text in items
+    )
+    st.markdown(
+        f"""<div style="background:{THEME['panel']};border:1px solid {THEME['border']};
+        border-left:3px solid {THEME['accent']};border-radius:12px;padding:14px 18px;margin:16px 0 4px">
+        <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;
+        color:{THEME['accent']};font-weight:600;margin-bottom:6px">What stands out</div>
+        {rows}</div>""",
+        unsafe_allow_html=True,
+    )
 
 
 def _dividends(company: str, show) -> None:
