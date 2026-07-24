@@ -7,6 +7,7 @@ Stored ratios (ROE/ROA/margins) are used as-is elsewhere; this module only adds
 growth/aggregation views on top.
 """
 from __future__ import annotations
+from functools import lru_cache
 import math
 
 from . import data
@@ -89,6 +90,7 @@ def company_cagr(company: str, metric: str) -> float | None:
     return cagr(data.series(company, metric))
 
 
+@lru_cache(maxsize=None)
 def biggest_movers(metric: str = "gross_earnings", min_years: int = 3) -> list[tuple[str, float, float | None]]:
     """(company, CAGR, latest value) for every company, best growth first."""
     rows = []
@@ -101,6 +103,7 @@ def biggest_movers(metric: str = "gross_earnings", min_years: int = 3) -> list[t
     return rows
 
 
+@lru_cache(maxsize=None)
 def margin_movers() -> list[tuple[str, float]]:
     """(company, net-margin change first->last), biggest expansion first."""
     rows = []
@@ -113,6 +116,7 @@ def margin_movers() -> list[tuple[str, float]]:
     return rows
 
 
+@lru_cache(maxsize=None)
 def market_summary() -> dict:
     """Headline, market-level facts for the home hero."""
     df = data.load()
@@ -131,6 +135,73 @@ def market_summary() -> dict:
         "median_growth": median_growth,
         "profitable": profitable,
         "total_reporting": int(pat_vals.shape[0]),
+    }
+
+
+@lru_cache(maxsize=None)
+def dividend_profile(company: str) -> dict:
+    """Everything the dividend tracker needs for one company.
+
+    Note: dividend *yield* is deliberately absent — it needs a share price, and
+    this dataset is fundamentals-only. Everything here comes from declared DPS,
+    payout ratio and share count.
+    """
+    dps = data.series(company, "dividend_per_share")
+    years = data.years_for(company)
+    paid = {y: v for y, v in dps.items() if v and v > 0}
+    latest_dps, latest_yr = data.latest_value(company, "dividend_per_share")
+    shares, _ = data.latest_value(company, "shares_outstanding")
+    payout, _ = data.latest_value(company, "payout_ratio")
+    eps, _ = data.latest_value(company, "eps_basic")
+
+    # consecutive years paid, counting back from the most recent year
+    streak = 0
+    for y in sorted(years, reverse=True):
+        if paid.get(y):
+            streak += 1
+        else:
+            break
+
+    growth = cagr(paid) if len(paid) >= 2 else None
+    total_payout = (latest_dps * shares) if (latest_dps and shares) else None
+    return {
+        "company": company,
+        "dps": dps,
+        "latest_dps": latest_dps if (latest_dps and latest_dps > 0) else None,
+        "latest_year": latest_yr,
+        "years_paid": len(paid),
+        "years_total": len(years),
+        "streak": streak,
+        "consistent": len(paid) == len(years) and len(years) >= 3,
+        "dps_cagr": growth,
+        "payout": payout,
+        "eps": eps,
+        "total_payout": total_payout,
+        "covered": (payout is not None and 0 < payout <= 1.0),
+    }
+
+
+@lru_cache(maxsize=None)
+def dividend_table() -> list[dict]:
+    """Dividend profile for every company, biggest total payout first."""
+    rows = [dividend_profile(c) for c in data.companies()]
+    rows.sort(key=lambda r: (r["total_payout"] is not None, r["total_payout"] or 0), reverse=True)
+    return rows
+
+
+@lru_cache(maxsize=None)
+def dividend_market_summary() -> dict:
+    rows = dividend_table()
+    payers = [r for r in rows if r["latest_dps"]]
+    total = sum(r["total_payout"] for r in payers if r["total_payout"])
+    payouts = sorted(r["payout"] for r in payers if r["payout"] is not None)
+    med_payout = payouts[len(payouts) // 2] if payouts else None
+    return {
+        "payers": len(payers),
+        "total_companies": len(rows),
+        "total_declared": total,
+        "median_payout": med_payout,
+        "consistent": sum(1 for r in rows if r["consistent"]),
     }
 
 

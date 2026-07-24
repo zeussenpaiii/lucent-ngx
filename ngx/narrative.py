@@ -9,6 +9,7 @@ state a figure the data doesn't support, and it needs no API or model weights.
 Returns an ordered dict of section -> str | list[str].
 """
 from __future__ import annotations
+from functools import lru_cache
 
 from . import config, data, metrics
 from .config import display_name, profile_for
@@ -31,6 +32,7 @@ def _pct_word(v, hi, mid, lo_neg_label="a loss"):
     return "modest"
 
 
+@lru_cache(maxsize=None)
 def generate(company: str) -> dict:
     name = display_name(company)
     sector = data.company_sector(company)

@@ -2,7 +2,7 @@
 from __future__ import annotations
 import streamlit as st
 
-from .. import config, data, charts, narrative, report, state, ui
+from .. import config, data, charts, metrics, narrative, report, state, ui
 from ..config import THEME, display_name, profile_for
 
 
@@ -80,9 +80,46 @@ def _charts(company: str, sector: str, profile: str) -> None:
         if eq and li:
             show(charts.grouped_bars({"Equity": eq, "Liabilities": li}, "naira",
                                      "Equity vs liabilities"))
-        elif data.series(company, "dividend_per_share"):
-            show(charts.bars(data.series(company, "dividend_per_share"), "per_share",
-                             "Dividend per share"))
+
+    _dividends(company, show)
+
+
+def _dividends(company: str, show) -> None:
+    """Dividend history + reliability, shown only for companies that actually pay."""
+    dps = data.series(company, "dividend_per_share")
+    if not any(v and v > 0 for v in dps.values()):
+        return
+    p = metrics.dividend_profile(company)
+    from .. import format as fmt
+
+    row = st.columns(2)
+    with row[0]:
+        show(charts.bars(dps, "per_share", "Dividend per share", color=THEME["accent"]))
+    with row[1]:
+        payout_col = THEME["pos"] if p["covered"] else THEME["accent"]
+        cover_note = ("covered by earnings" if p["covered"]
+                      else "paid out more than earned" if p["payout"] else "—")
+        growth = fmt.pct(p["dps_cagr"]) if p["dps_cagr"] is not None else "—"
+        st.markdown(
+            f"""<div style="background:{THEME['panel']};border:1px solid {THEME['border']};
+            border-radius:12px;padding:14px 16px;margin-top:34px">
+            <div style="font-size:11.5px;color:{THEME['muted']};text-transform:uppercase;
+            letter-spacing:.4px;margin-bottom:10px">Dividend profile</div>
+            {_stat('Latest dividend', fmt.per_share(p['latest_dps']) if p['latest_dps'] else '—')}
+            {_stat('Payout ratio', fmt.pct(p['payout']) if p['payout'] is not None else '—', payout_col)}
+            {_stat('Dividend growth', growth)}
+            {_stat('Paid', f"{p['years_paid']} of {p['years_total']} years"
+                   + (' · every year' if p['consistent'] else ''))}
+            <div style="color:{THEME['faint']};font-size:11.5px;margin-top:8px">{cover_note}. Yield needs a
+            share price, which this dataset doesn't include.</div></div>""",
+            unsafe_allow_html=True)
+
+
+def _stat(label: str, value: str, color: str | None = None) -> str:
+    return (f"<div style='display:flex;justify-content:space-between;padding:3px 0'>"
+            f"<span style='color:{THEME['muted']};font-size:13px'>{label}</span>"
+            f"<span class='lux-num' style='color:{color or THEME['text']};font-size:13.5px;"
+            f"font-weight:600'>{value}</span></div>")
 
 
 def _statements(company: str) -> None:

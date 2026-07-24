@@ -7,10 +7,16 @@ coerced to floats once; ratios keep their stored (average-balance) values and
 are never silently recomputed.
 """
 from __future__ import annotations
+from functools import lru_cache
 from pathlib import Path
 import pandas as pd
 
 from . import config
+
+# Process-wide memoisation that does NOT copy its return value (unlike
+# st.cache_data). Safe here because the dataset is static and read-only.
+def _lru(fn):
+    return lru_cache(maxsize=None)(fn)
 
 # Use Streamlit's cache when running in the app; fall back to a plain lru_cache
 # so the module is importable/testable with bare Python too.
@@ -18,8 +24,6 @@ try:
     import streamlit as st
     _cache = st.cache_data
 except Exception:  # pragma: no cover
-    from functools import lru_cache
-
     def _cache(func=None, **_kw):
         def wrap(f):
             return lru_cache(maxsize=None)(f)
@@ -72,14 +76,41 @@ def sector_members(sector: str) -> list[str]:
     return sorted(raw, key=lambda c: config.display_name(c).lower())
 
 
+@_lru
+def _index() -> dict[str, dict[str, dict[int, float]]]:
+    """Precomputed {company: {metric: {year: value}}} lookup.
+
+    Built once per process. The UI asks for a metric series dozens of times per
+    render, and re-filtering the DataFrame each time was the app's main source
+    of lag (~3ms a call). A plain lru_cache is used rather than st.cache_data
+    because the latter deep-copies its return value on every access.
+    """
+    df = load()
+    idx: dict[str, dict[str, dict[int, float]]] = {}
+    for company, g in df.groupby("company", sort=False):
+        years = [int(y) for y in g["year"].tolist()]
+        metrics: dict[str, dict[int, float]] = {}
+        for col in _NUMERIC:
+            if col not in g.columns:
+                continue
+            vals = g[col].tolist()
+            s = {y: float(v) for y, v in zip(years, vals) if pd.notna(v)}
+            if s:
+                metrics[col] = s
+        metrics["__years__"] = {y: 1.0 for y in sorted(years)}  # type: ignore[assignment]
+        idx[company] = metrics
+    return idx
+
+
+@_lru
 def company_frame(company: str) -> pd.DataFrame:
-    """All rows for one company, sorted by year ascending."""
+    """All rows for one company, sorted by year ascending (used for provenance)."""
     df = load()
     return df[df["company"] == company].sort_values("year").reset_index(drop=True)
 
 
 def years_for(company: str) -> list[int]:
-    return [int(y) for y in company_frame(company)["year"].tolist()]
+    return sorted(_index().get(company, {}).get("__years__", {}))
 
 
 def latest_year(company: str) -> int | None:
@@ -88,25 +119,15 @@ def latest_year(company: str) -> int | None:
 
 
 def series(company: str, metric: str) -> dict[int, float]:
-    """{year: value} for a metric, missing years omitted."""
-    df = company_frame(company)
-    if metric not in df.columns:
-        return {}
-    out = {}
-    for _, row in df.iterrows():
-        v = row[metric]
-        if pd.notna(v):
-            out[int(row["year"])] = float(v)
-    return out
+    """{year: value} for a metric, missing years omitted. O(1) lookup.
+
+    The returned dict is shared, not copied — callers treat it as read-only.
+    """
+    return _index().get(company, {}).get(metric, {})
 
 
 def value(company: str, metric: str, year: int) -> float | None:
-    df = company_frame(company)
-    hit = df[df["year"] == year]
-    if not len(hit) or metric not in df.columns:
-        return None
-    v = hit[metric].iloc[0]
-    return float(v) if pd.notna(v) else None
+    return series(company, metric).get(year)
 
 
 def latest_value(company: str, metric: str) -> tuple[float | None, int | None]:

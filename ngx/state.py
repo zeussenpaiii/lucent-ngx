@@ -14,7 +14,7 @@ next run — before the radio is created — and writes the target in safely.
 from __future__ import annotations
 import streamlit as st
 
-PAGES = ["Home", "Company", "Compare", "Sectors", "Screener", "Rankings", "Glossary"]
+PAGES = ["Home", "Company", "Compare", "Sectors", "Screener", "Dividends", "Rankings", "Glossary"]
 
 
 def init() -> None:

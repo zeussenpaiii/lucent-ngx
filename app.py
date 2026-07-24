@@ -9,7 +9,7 @@ import streamlit as st
 
 from ngx import config, state, brand
 from ngx.config import THEME
-from ngx.views import home, company, compare, rankings, screener, sector, glossary_view
+from ngx.views import home, company, compare, rankings, screener, sector, dividends, glossary_view
 
 st.set_page_config(page_title=f"{config.BRAND} · {config.APP_DESCRIPTOR}",
                    page_icon="◆", layout="wide", initial_sidebar_state="expanded")
@@ -54,6 +54,7 @@ def main() -> None:
         "Compare": compare.render,
         "Sectors": sector.render,
         "Screener": screener.render,
+        "Dividends": dividends.render,
         "Rankings": rankings.render,
         "Glossary": glossary_view.render,
     }
